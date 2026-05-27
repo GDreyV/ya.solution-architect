@@ -1,0 +1,94 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+LAYOUT_LEFT_RIGHT()
+
+title C4 Container Diagram — AdScale TO-BE
+
+Person(advertiser, "Рекламодатель", "Управляет кампаниями, бюджетами и отчётами")
+Person_Ext(endUser, "Пользователь сайта/приложения", "Видит рекламу и кликает по баннерам")
+
+System_Ext(dspPartner, "DSP-партнёры", "Отправляют bid requests и получают bid responses по OpenRTB")
+System_Ext(paymentGateway, "Платёжный шлюз", "Обработка платежей")
+
+System_Boundary(adscale, "AdScale Platform") {
+
+    Container(apiGateway, "API Gateway / Load Balancer", "Gateway", "Маршрутизация внешнего трафика, TLS, rate limiting")
+
+    Container(rtbRuntime, "RTB Runtime", "C++ / Go", "Ad Server + Auction Engine + Delivery Service. Latency-critical path")
+    Container(campaignService, "Campaign Service", "Go", "Управление кампаниями, ставками, таргетингом")
+    Container(billingService, "Billing Service", "Go", "Балансы, списания, счета")
+    Container(statsService, "Statistics Service", "Python / Go", "Обработка событий показов и кликов")
+    Container(analyticsService, "Analytics Service", "Python", "Отчёты и аналитические запросы")
+    Container(adDashboard, "Advertiser Dashboard", "Node.js / JavaScript", "Web UI для рекламодателей")
+
+    ContainerDb(redis, "Redis Cluster", "Redis", "Кэш активных кампаний, ставок, targeting data")
+    ContainerQueue(kafka, "Event Streaming Platform", "Kafka", "Поток событий: impressions, clicks, billing events")
+
+    ContainerDb(campaignDb, "Campaign DB", "PostgreSQL", "Кампании, ставки, targeting rules")
+    ContainerDb(billingDb, "Billing DB", "PostgreSQL", "Финансовые операции и балансы")
+    ContainerDb(statsDb, "Statistics DB", "PostgreSQL / partitioned storage", "Сырые и агрегированные события")
+    ContainerDb(analyticsDb, "Analytics DB", "ClickHouse / OLAP", "Отчёты, агрегации, историческая аналитика")
+
+    Container(observability, "Observability Stack", "Prometheus / Grafana / Logs / Tracing", "Метрики, логи, трейсы, алерты")
+}
+
+Rel(dspPartner, apiGateway, "Bid requests / responses", "HTTPS / OpenRTB")
+Rel(advertiser, adDashboard, "Управляет кампаниями", "HTTPS")
+Rel(endUser, apiGateway, "Impressions / clicks", "HTTPS")
+
+Rel(apiGateway, rtbRuntime, "RTB traffic", "HTTP/gRPC")
+Rel(apiGateway, adDashboard, "Dashboard traffic", "HTTPS")
+
+Rel(rtbRuntime, redis, "Читает кампании, ставки, targeting data", "Cache read")
+Rel(rtbRuntime, kafka, "Публикует impressions / clicks / auction events", "Async events")
+Rel(rtbRuntime, campaignService, "Получает данные кампаний при cache miss", "Internal API")
+
+Rel(adDashboard, campaignService, "CRUD кампаний", "REST/gRPC")
+Rel(adDashboard, billingService, "Управление бюджетами", "REST/gRPC")
+Rel(adDashboard, analyticsService, "Запросы отчётов", "REST/gRPC")
+
+Rel(campaignService, campaignDb, "Хранит кампании и ставки", "SQL")
+Rel(campaignService, redis, "Обновляет кэш активных кампаний", "Cache update")
+
+Rel(billingService, billingDb, "Транзакции и балансы", "SQL")
+Rel(billingService, paymentGateway, "Платежи", "HTTPS / REST")
+Rel(billingService, kafka, "Публикует billing events", "Async events")
+
+Rel(kafka, statsService, "Потребляет impressions / clicks", "Consumer")
+Rel(statsService, statsDb, "Записывает события батчами", "Batch write")
+Rel(statsService, analyticsDb, "Передаёт агрегаты для аналитики", "ETL / streaming")
+
+Rel(kafka, analyticsService, "Потребляет события для отчётности", "Consumer")
+Rel(analyticsService, analyticsDb, "Читает аналитические данные", "OLAP queries")
+
+Rel(rtbRuntime, observability, "Метрики latency, RPS, errors", "Metrics / traces")
+Rel(campaignService, observability, "Метрики и логи", "Metrics / logs")
+Rel(billingService, observability, "Метрики и логи", "Metrics / logs")
+Rel(statsService, observability, "Lag, throughput, errors", "Metrics / logs")
+Rel(analyticsService, observability, "Query latency, errors", "Metrics / logs")
+
+note bottom of rtbRuntime
+  RTB Core оставлен единым runtime,
+  чтобы минимизировать network hops
+  в latency-critical path.
+end note
+
+note bottom of kafka
+  Event streaming отделяет
+  RTB path от записи статистики
+  и аналитической обработки.
+end note
+
+note bottom of redis
+  Кэш снижает количество
+  read-запросов к Campaign DB.
+end note
+
+note right of analyticsDb
+  Аналитика вынесена из OLTP-БД,
+  чтобы не влиять на latency аукциона.
+end note
+
+@enduml
