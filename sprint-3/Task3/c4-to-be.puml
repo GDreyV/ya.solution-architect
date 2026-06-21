@@ -1,0 +1,90 @@
+@startuml c4-to-be.puml
+!include <C4/C4_Container>
+
+title VitaStore TO-BE — Cloud POS с автономным Store Edge (C4 Container)
+
+LAYOUT_LEFT_RIGHT()
+
+Person(cashier, "Кассир", "Проводит продажи на планшете")
+
+System_Boundary(store, "Магазин / Store Edge") {
+  Container(pos, "Thin POS Client", "Web/PWA или приложение на планшете", "UI кассира; online-first, переключается на локальный Edge API при потере связи")
+  Container(edge, "Store Edge Runtime", "Небольшой управляемый edge-box", "Локальный API и минимальная кассовая логика для автономной продажи")
+  ContainerDb(cache, "Offline Store", "Embedded DB", "Зашифрованный кэш товаров, цен и правил; append-only журнал операций")
+  Container(sync, "Sync Agent", "Background service", "Outbox/inbox, повторы, дедупликация и контроль checkpoint")
+  Container(hal, "Hardware Abstraction Layer", "Local service", "Единый API печати чека и запуска платежа")
+  Container(fiscalAdapters, "Fiscal Adapters", "Плагины", "Адаптеры производителей и моделей ККТ")
+  Container(paymentAdapters, "Payment Terminal Adapters", "Плагины", "ARCUS-2, Ingenico, Verifone, Сбербанк, Альфа")
+  Container(fiscal, "Фискальный регистратор", "ККТ, COM/USB", "Фискализирует и печатает чек")
+  Container(terminal, "Банковский терминал", "USB/LAN", "Принимает безналичную оплату при доступном канале")
+}
+
+System_Boundary(cloud, "Cloud Backend") {
+  Container(api, "API Gateway", "Managed cloud service", "TLS, маршрутизация, rate limits и аутентификация устройств")
+  Container(posBackend, "Cloud POS Backend", "SaaS/PaaS", "Продажи, смены, возвраты и централизованная кассовая бизнес-логика")
+  Container(syncApi, "Store Sync Service", "PaaS", "Принимает события edge и формирует дельты справочников")
+  ContainerDb(posDb, "Operational DB", "Managed relational DB", "Продажи, смены, статусы синхронизации")
+  Container(eventBus, "Event Bus", "Managed message broker", "Асинхронная доставка событий с повторными попытками")
+  Container(catalog, "Catalog & Pricing Service", "PaaS", "Товары, цены и версии offline-пакетов")
+  Container(paymentGateway, "Payment Gateway", "Cloud service", "Единый контракт с банками/эквайерами, токены и статусы платежей")
+  Container(observability, "Monitoring & Device Management", "Cloud operations", "Здоровье edge, версии адаптеров, метрики и удаленное обновление")
+}
+
+System_Ext(sap, "SAP ERP", "On-premise система учета")
+System_Ext(promo, "Promo Engine", "Центральный движок промо")
+System_Ext(fulfillment, "Smart Fulfillment", "Омниканальная логистика")
+System_Ext(acquirers, "Банки / эквайеры", "Сбербанк, Альфа и другие")
+
+Rel(cashier, pos, "Проводит продажу", "UI")
+Rel(pos, api, "Online-операции", "HTTPS/JSON")
+Rel(pos, edge, "Offline и работа с устройствами", "HTTPS, localhost/LAN")
+Rel(edge, cache, "Читает snapshot и атомарно пишет операции", "Embedded transaction")
+Rel(edge, hal, "Печать / платеж по стабильному контракту", "Local API")
+Rel(hal, fiscalAdapters, "Выбирает адаптер по конфигурации", "Plugin SPI")
+Rel(hal, paymentAdapters, "Выбирает адаптер по конфигурации", "Plugin SPI")
+Rel(fiscalAdapters, fiscal, "Управляет устройством", "Vendor driver")
+Rel(paymentAdapters, terminal, "Управляет устройством", "Vendor protocol")
+Rel(hal, paymentGateway, "Online payment orchestration", "mTLS/HTTPS")
+Rel(paymentGateway, acquirers, "Авторизация и сверка", "Provider APIs")
+Rel(sync, cache, "Читает outbox, применяет inbox", "Transactional outbox")
+Rel(sync, api, "Отправляет события и получает дельты", "mTLS/HTTPS, batch")
+Rel(api, posBackend, "Маршрутизирует команды", "HTTPS")
+Rel(api, syncApi, "Маршрутизирует синхронизацию", "HTTPS")
+Rel(posBackend, posDb, "Читает/пишет", "SQL")
+Rel(posBackend, eventBus, "Публикует события продаж", "Async events")
+Rel(syncApi, eventBus, "Публикует принятые offline-события", "Async events")
+Rel(syncApi, posDb, "Фиксирует idempotency key и checkpoint", "SQL")
+Rel(syncApi, catalog, "Получает версии и дельты", "API")
+Rel(catalog, sap, "Синхронизирует товары и базовые цены", "Integration API/batch")
+Rel(catalog, promo, "Получает промо и offline-правила", "API/events")
+Rel(eventBus, sap, "Передает продажи и движения", "Async integration")
+Rel(eventBus, fulfillment, "Передает изменения доступности", "Async integration")
+Rel(observability, edge, "Мониторит и обновляет при наличии связи", "mTLS")
+Rel(observability, hal, "Доставляет подписанные адаптеры", "Versioned packages")
+
+UpdateElementStyle(hal, $bgColor="#F9A825", $fontColor="#000000", $borderColor="#8D6E00")
+UpdateElementStyle(cache, $bgColor="#7E57C2", $fontColor="#FFFFFF", $borderColor="#4527A0")
+UpdateElementStyle(sync, $bgColor="#7E57C2", $fontColor="#FFFFFF", $borderColor="#4527A0")
+
+SHOW_LEGEND()
+
+note bottom of edge
+  Edge-box — не сервер магазина и не master-БД.
+  Это заменяемый stateless runtime с небольшим
+  зашифрованным offline-хранилищем.
+end note
+
+note bottom of hal
+  POS знает только стабильные команды:
+  printReceipt(), startPayment(), cancelPayment().
+  Новое оборудование требует нового адаптера,
+  но не изменения и пересборки POS.
+end note
+
+note bottom of cache
+  При обрыве связи разрешены наличные продажи.
+  Облачные loyalty/online-only промо отключаются
+  или применяются только по заранее загруженным правилам.
+end note
+
+@enduml

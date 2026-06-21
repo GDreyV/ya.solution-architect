@@ -1,0 +1,108 @@
+@startuml onboarding-to-be.puml
+title To-Be процесс онбординга нового магазина
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #EEF4E3
+  BorderColor #7D8E5C
+  FontColor #2F3328
+  DiamondBackgroundColor #FFE7E7
+  DiamondBorderColor #D84A4A
+  StartColor #8FA566
+  EndColor #FFE36E
+}
+skinparam partition {
+  BorderColor #777777
+  BackgroundColor #F7F7F7
+  FontColor #333333
+}
+skinparam note {
+  BackgroundColor #FFF8D6
+  BorderColor #D6B84A
+}
+
+start
+
+partition "Люди / магазин\nИТ-инженер" {
+  :Подключить магазин к сети VitaStore;
+  :Выгрузить номенклатуру\nиз старой кассы;
+}
+
+partition "ERP VitaStore" {
+  :Принять файл номенклатуры;
+  :Валидировать формат\nи обязательные поля;
+  if (Файл корректен?) then (да)
+    :Передать данные\nна автоматический маппинг;
+  else (нет)
+    :Вернуть список ошибок\nИТ-инженеру;
+    stop
+  endif
+}
+
+partition "AI-сервис маппинга" {
+  :Сопоставить позиции\nс эталонной базой VitaStore;
+  :Рассчитать confidence\nдля каждой позиции;
+}
+
+partition "ERP VitaStore" {
+  :Разделить результат\nпо порогу уверенности;
+  if (Confidence >= 95%?) then (да)
+    :Принять маппинг автоматически;
+  else (нет)
+    :Сформировать очередь\nна ручную проверку;
+  endif
+}
+
+partition "Люди / HQ\nТоваровед" {
+  if (Есть позиции\nдля проверки?) then (да)
+    :Проверить спорные позиции;
+    :Подтвердить или исправить\nсоответствия товаров;
+  else (нет)
+  endif
+}
+
+partition "ERP VitaStore" {
+  :Собрать финальную\nтаблицу маппинга;
+  :Проверить штрихкоды,\nдубли и цены;
+  if (Ошибки найдены?) then (да)
+    :Создать задачу\nна исправление данных;
+    :Получить исправленный\nмаппинг от товароведа;
+    :Сформировать пакет загрузки\nдля кассы магазина;
+  else (нет)
+    :Сформировать пакет загрузки\nдля кассы магазина;
+  endif
+}
+
+partition "POS / касса магазина" {
+  :Загрузить обновленную\nтоварную базу;
+  :Выполнить тестовую продажу\nконтрольных товаров;
+  if (Тест успешен?) then (да)
+    :Магазин готов\nк открытию под брендом VitaStore;
+  else (нет)
+    :Отправить отчет об ошибках\nв ERP;
+  endif
+}
+
+partition "ERP VitaStore" {
+  if (Получен отчет\nоб ошибках?) then (да)
+    :Создать тикет\nИТ-инженеру / товароведу;
+  else (нет)
+  endif
+}
+
+stop
+
+legend right
+  <b>Точка верификации</b>
+  AI-сервис автоматически принимает сопоставления
+  с confidence >= 95%.
+  Позиции ниже порога попадают товароведу,
+  который подтверждает или исправляет маппинг.
+
+  <b>Поток данных</b>
+  Старая касса -> ERP -> AI-сервис -> ERP ->
+  товаровед при низкой уверенности -> POS/касса.
+endlegend
+
+@enduml

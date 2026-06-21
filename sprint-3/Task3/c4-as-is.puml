@@ -1,0 +1,64 @@
+@startuml c4-as-is.puml
+!include <C4/C4_Container>
+
+title VitaStore AS-IS — кассовая зона (C4 Container)
+
+LAYOUT_LEFT_RIGHT()
+
+Person(cashier, "Кассир", "Проводит продажи и возвраты")
+Person(engineer, "Выездной ИТ-инженер", "Настраивает серверы и переносит данные")
+Person(merchandiser, "Товаровед HQ", "Сопоставляет номенклатуру вручную")
+
+System_Boundary(store, "Магазин / Store Edge") {
+  Container(pos, "POS App / Back-office", "Windows, C#", "Толстый монолитный клиент: кассовая бизнес-логика и vendor-specific драйверы")
+  ContainerDb(localDb, "Local DB", "MS SQL Server / PostgreSQL", "Цены, товары, чеки и справочники магазина на локальном сервере")
+  Container(fiscal, "Фискальный регистратор", "ККТ, COM/USB", "Печатает и фискализирует чеки")
+  Container(terminal, "Банковский терминал", "Ingenico / Verifone / Сбербанк / Альфа", "Принимает безналичную оплату")
+}
+
+System_Boundary(hq, "Central Office / HQ") {
+  Container(sap, "SAP ERP", "On-premise", "Центральный учет товаров, цен, кадров и финансов")
+  Container(promo, "Promo Engine", "On-premise", "Единые правила промоакций")
+  Container(fulfillment, "Smart Fulfillment", "In-house", "Омниканальная логистика")
+  Container(mailExcel, "Email + Excel/VLOOKUP", "Ручной процесс", "Передача выгрузок и сопоставление SKU")
+  Container(ftp, "FTP distribution", "Пакетный обмен", "Ночная рассылка XML-прайс-листов")
+}
+
+Rel(cashier, pos, "Работает с кассой", "UI")
+Rel(pos, localDb, "Синхронно читает цены и сохраняет чеки", "SQL")
+Rel(pos, fiscal, "Напрямую управляет печатью", "Vendor COM/USB driver")
+Rel(pos, terminal, "Напрямую инициирует оплату", "Vendor USB/protocol driver")
+Rel(engineer, localDb, "Снимает CSV/XLS-дамп и настраивает сервер", "Локальный доступ")
+Rel(engineer, mailExcel, "Отправляет выгрузку", "Email")
+Rel(merchandiser, mailExcel, "Сопоставляет SKU, около 80% вручную", "Excel/VLOOKUP")
+Rel(mailExcel, sap, "Загружает итоговый файл", "Ручная загрузка")
+Rel(sap, ftp, "Формирует XML в 02:00", "Batch")
+Rel(ftp, localDb, "Рассылает цены и справочники", "FTP/XML, nightly")
+Rel(sap, promo, "Обменивается мастер-данными", "Enterprise integration")
+Rel(sap, fulfillment, "Передает данные учета", "Enterprise integration")
+
+UpdateRelStyle(pos, fiscal, $lineColor="#C62828")
+UpdateRelStyle(pos, terminal, $lineColor="#C62828")
+UpdateRelStyle(ftp, localDb, $lineColor="#C62828")
+
+SHOW_LEGEND()
+
+note right of pos
+  <b>Проблема:</b> кассовый монолит связан
+  с моделями оборудования и требует
+  пересборки для нового протокола.
+end note
+
+note bottom of localDb
+  <b>Single point of failure:</b>
+  отказ диска локального сервера
+  останавливает магазин.
+end note
+
+note bottom of ftp
+  Исправление исходного артефакта:
+  Real-time REST API отсутствует;
+  используется ночной FTP/XML-обмен.
+end note
+
+@enduml
