@@ -1,0 +1,93 @@
+@startuml retailcore-context-to-be
+title RetailCore — контекст TO-BE первого этапа
+left to right direction
+skinparam shadowing false
+skinparam componentStyle rectangle
+
+actor "Покупатель" as customer
+actor "Поддержка /\nоперации" as support
+actor "Маркетинг / финансы /\nменеджмент" as business
+rectangle "Сайт / мобильное приложение /\nмаркетплейсы" as channels
+
+rectangle "RetailCore TO-BE: сосуществование контуров" {
+  package "Сохраняемое критическое ядро" #FFDDDD {
+    component "Java-монолит\nCheckout / Order commands / Price /\nPayment & Delivery orchestration" as mono #FFDDDD
+    database "Oracle\nSystem of Record, правила, процедуры" as oracle #FFDDDD
+    component "Promo Service" as promo #FFDDDD
+    component "Order Status module /\nlegacy admin" as legacyStatus #FFDDDD
+  }
+
+  package "Новый контур первого этапа" #DDFFDD {
+    component "Outbox Relay" as relay #DDFFDD
+    queue "Брокер событий\nOrder events + DLQ" as broker #DDFFDD
+    component "Order Read Model\nсостояние, история, причина" as readModel #DDFFDD
+    database "Хранилище проекции" as readDb #DDFFDD
+    component "Support View\nтолько чтение" as supportView #DDFFDD
+    component "Integration ACL\nадаптер пилотного партнёра" as acl #FFF2CC
+    component "Analytics projections /\nвитрины" as analytics #DDFFDD
+    component "Observability, audit,\nreconciliation" as obs #DDFFDD
+  }
+
+  package "Временно сохраняемые legacy-интеграции" #FFF2CC {
+    component "REST / staging / polling /\nbatch / Legacy .NET" as legacyIntegration #FFF2CC
+  }
+}
+
+cloud "Платёжный шлюз" as payment
+cloud "Склады / наличие" as stock
+cloud "Логистические партнёры" as delivery
+rectangle "Потребители отчётности" as reports
+
+customer --> channels
+channels --> mono : команды checkout\nбез изменения контракта
+mono --> promo : синхронный расчёт
+mono --> payment : платёжная сессия
+mono --> stock : наличие / резерв
+mono --> oracle : заказ + outbox\nв одной транзакции
+mono --> legacyStatus : legacy-переходы
+legacyStatus --> oracle
+
+oracle ..> relay : непрочитанные outbox-записи
+relay ..> broker : committed order events
+broker ..> readModel : at-least-once
+readModel --> readDb
+support --> supportView : состояние и причины
+supportView --> readModel : query
+broker ..> analytics : канонические события
+analytics --> reports
+business --> reports
+
+broker ..> acl : команда/событие пилота
+acl --> delivery : версионированный API
+delivery ..> acl : callback/status
+acl ..> broker : результат
+
+oracle ..> legacyIntegration : staging / polling
+mono ..> legacyIntegration : старые потоки
+legacyIntegration <--> stock
+legacyIntegration <--> delivery
+
+obs ..> mono
+obs ..> relay
+obs ..> broker
+obs ..> readModel
+obs ..> acl
+obs ..> oracle : сверка с SoR
+
+note bottom of mono
+  На первом этапе не выносятся:\ncheckout, order commands, price,\npayment orchestration
+end note
+
+note bottom of readModel
+  Новая граница только для чтения;\nне становится владельцем команд
+end note
+
+legend right
+  |= Цвет |= Значение |
+  |<#FFDDDD>| Сохраняется без функционального выноса |
+  |<#DDFFDD>| Новый компонент первого этапа |
+  |<#FFF2CC>| Изменяемый или временно сохраняемый путь |
+  | Сплошная связь | Синхронная команда / запрос |
+  | Пунктирная связь | Событие / async / polling |
+endlegend
+@enduml
