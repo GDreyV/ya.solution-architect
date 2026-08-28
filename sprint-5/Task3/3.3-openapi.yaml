@@ -1,0 +1,111 @@
+openapi: 3.0.3
+info:
+  title: Health+ Mobile API
+  version: 1.0.0
+paths:
+  /api/v1/appointments:
+    get:
+      summary: Получить список записей текущего пациента
+      operationId: getAppointments
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [upcoming]
+            default: upcoming
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Список записей
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentsPage'
+              example:
+                items:
+                  - id: apt-12045
+                    status: upcoming
+                    startsAt: '2026-09-01T14:30:00+03:00'
+                    doctor:
+                      id: doc-42
+                      fullName: Иванова Анна Сергеевна
+                      specialty: Терапевт
+                    clinic:
+                      id: clinic-msk-1
+                      name: Здоровье+ на Тверской
+                limit: 20
+                offset: 0
+                total: 1
+        '401':
+          description: Токен отсутствует, истёк или недействителен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example: {code: unauthorized, message: Требуется аутентификация}
+        '500':
+          description: Внутренняя ошибка
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example: {code: internal_error, message: Не удалось получить записи}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AppointmentsPage:
+      type: object
+      required: [items, limit, offset, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Appointment'
+        limit: {type: integer}
+        offset: {type: integer}
+        total: {type: integer}
+    Appointment:
+      type: object
+      required: [id, status, startsAt, doctor, clinic]
+      properties:
+        id: {type: string}
+        status: {type: string, enum: [upcoming]}
+        startsAt: {type: string, format: date-time}
+        doctor:
+          type: object
+          required: [id, fullName, specialty]
+          properties:
+            id: {type: string}
+            fullName: {type: string}
+            specialty: {type: string}
+        clinic:
+          type: object
+          required: [id, name]
+          properties:
+            id: {type: string}
+            name: {type: string}
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: string}
+        message: {type: string}
