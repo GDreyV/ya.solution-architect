@@ -1,0 +1,68 @@
+@startuml reatilcore-context-as-is
+title RetailCore — контекст AS-IS
+left to right direction
+skinparam shadowing false
+skinparam componentStyle rectangle
+
+actor "Покупатель" as customer
+actor "Поддержка /\nоперации" as support
+actor "Маркетинг / финансы /\nменеджмент" as business
+rectangle "Сайт / мобильное приложение /\nмаркетплейсы" as channels
+
+rectangle "RetailCore AS-IS" {
+  component "Java-монолит\nOrder / Checkout / Price / Status" as mono #FFDDDD
+  database "Oracle\nORDERS, правила, процедуры,\nstaging, retry" as oracle #FFDDDD
+  component "Promo Service" as promo
+  component "Order Status module" as status
+  component "Интеграционный контур\nREST / broker / batch / polling" as integration #FFDDDD
+  component "Legacy .NET module" as dotnet
+  component "Python analytics / ETL / витрины" as analytics #FFDDDD
+  component "Административный интерфейс" as admin
+}
+
+cloud "Платёжный шлюз" as payment
+cloud "Склады / сервис наличия" as stock
+cloud "Логистические партнёры" as delivery
+rectangle "Потребители отчётности" as reports
+
+customer --> channels
+channels --> mono : создать заказ, корзина
+mono --> promo : синхронный расчёт скидки
+mono --> oracle : fallback SQL; save; rules;\nstatus; staging
+mono --> status : переходы статуса
+status --> oracle
+mono --> payment : создать платёжную сессию
+mono --> stock : резерв / наличие / маршрут
+mono --> delivery : резерв слота
+mono ..> integration : экспорт / deferred processing
+integration <--> stock
+integration <--> delivery
+oracle ..> dotnet : polling staging
+dotnet ..> integration
+oracle ..> analytics : SQL / staging / batch
+mono ..> analytics : выгрузки / API
+integration ..> analytics : события / API / CSV
+support --> admin
+admin --> mono : ручные статусы и настройки
+admin --> oracle
+analytics --> reports
+business --> reports
+
+note bottom of mono
+  Центральный оркестратор;
+  синхронные зависимости;
+  смешение ответственности
+end note
+
+note bottom of oracle
+  Точка концентрации данных,
+  логики, интеграций и нагрузки
+end note
+
+legend right
+  |= Цвет |= Значение |
+  |<#FFDDDD>| Основная проблемная зона |
+  | Сплошная связь | Синхронный / прямой поток |
+  | Пунктирная связь | Async / batch / polling / file |
+endlegend
+@enduml
