@@ -1,0 +1,86 @@
+flowchart TB
+    subgraph CUSTOMER[Единый профиль клиента]
+        direction LR
+        FUCRM[FU CRM]
+        RBCRM[RB CRM]
+        CACT["<span style='color:#1E88E5'>🔵 <b>[R]</b> Чтение</span><br/>Данные клиента из CRM"]
+        P1([1.0 Сопоставление и публикация клиентов])
+        MDM[(MDM Customer Hub)]
+        CPUB["<span style='color:#FB8C00'>🟠 <b>[V]</b> Валидация</span> + <span style='color:#757575'>⚪ <b>[E]</b> Обогащение</span><br/><span style='color:#34A853'>🟢 <b>[C]</b> Создание</span> + <span style='color:#F9A825'>🟡 <b>[U]</b> Обновление</span><br/>Золотая запись клиента"]
+        CREAD["<span style='color:#1E88E5'>🔵 <b>[R]</b> Чтение</span><br/>Единый идентификатор из MDM"]
+        CUPDATE["<span style='color:#F9A825'>🟡 <b>[U]</b> Обновление</span><br/>Ссылка на клиента в системе"]
+        MREAD["<span style='color:#1E88E5'>🔵 <b>[R]</b> Чтение</span><br/>Золотая запись для отчётности"]
+
+        FUCRM --> CACT
+        RBCRM --> CACT
+        CACT --> P1 --> CPUB --> MDM --> CREAD --> CUPDATE
+        CUPDATE --> FUCRM
+        CUPDATE --> RBCRM
+    end
+
+    subgraph OPERATIONS[Консолидация операционных данных]
+        direction LR
+        FUCORE[FU Core Banking]
+        FULOANS[FU Loan System]
+        FUCARDS[FU Card Processing]
+        RBCORE[RB Core Banking]
+        RBLOANS[RB Loan System]
+        RBCARDS[RB Card Processing]
+        OACT["<span style='color:#1E88E5'>🔵 <b>[R]</b> Чтение</span><br/>Счета, договоры, карты, кредиты,<br/>операции, платежи, продукты и тарифы"]
+        P2([2.0 Integration Layer])
+        DACT["<span style='color:#FB8C00'>🟠 <b>[V]</b> Валидация</span> + <span style='color:#757575'>⚪ <b>[E]</b> Обогащение</span><br/><span style='color:#34A853'>🟢 <b>[C]</b> Создание</span> согласованных данных"]
+        DWH[(DWH)]
+
+        CUPDATE --> FUCORE
+        CUPDATE --> FULOANS
+        CUPDATE --> RBCORE
+        CUPDATE --> RBLOANS
+        FUCORE --> OACT
+        FULOANS --> OACT
+        FUCARDS --> OACT
+        RBCORE --> OACT
+        RBLOANS --> OACT
+        RBCARDS --> OACT
+        OACT --> P2 --> DACT --> DWH
+        MDM --> MREAD --> P2
+    end
+
+    subgraph REPORTING[Аналитика и отчётность]
+        direction LR
+        BACT["<span style='color:#1E88E5'>🔵 <b>[R]</b> Чтение</span> + <span style='color:#8E24AA'>🟣 <b>[A]</b> Агрегация</span><br/>Согласованные данные"]
+        P3([3.0 Пайплайн витрин])
+        BPUB["<span style='color:#34A853'>🟢 <b>[C]</b> Создание витрины</span><br/><span style='color:#1E88E5'>🔵 <b>[R]</b> Чтение отчёта</span>"]
+        BI[BI]
+        RACT["<span style='color:#1E88E5'>🔵 <b>[R]</b> Чтение</span> + <span style='color:#8E24AA'>🟣 <b>[A]</b> Агрегация</span><br/>Регламентированные данные"]
+        P4([4.0 Формирование отчётности])
+        REG[Регуляторная отчётность]
+
+        DWH --> BACT --> P3 --> BPUB --> BI
+        DWH --> RACT --> P4 --> REG
+    end
+
+    subgraph CATALOG[Каталог и происхождение данных]
+        direction LR
+        MACT["<span style='color:#34A853'>🟢 <b>[C]</b> Создание</span> + <span style='color:#F9A825'>🟡 <b>[U]</b> Обновление</span><br/>Метаданные и происхождение"]
+        P5([5.0 Регистрация в каталоге])
+        HUB[(DataHub)]
+        HREAD["<span style='color:#1E88E5'>🔵 <b>[R]</b> Чтение</span><br/>Каталог, владельцы и происхождение"]
+        HCONS[Data Office, ИТ<br/>и аналитики]
+
+        MDM --> MACT
+        P2 --> MACT
+        DWH --> MACT
+        MACT --> P5 --> HUB --> HREAD --> HCONS
+    end
+
+    classDef system fill:#E3F2FD,stroke:#039BE5,stroke-width:2px,color:#202124
+    classDef process fill:#FFFDF7,stroke:#424242,stroke-width:2px,color:#202124
+    classDef store fill:#E8F5D5,stroke:#689F38,stroke-width:2px,color:#202124
+    classDef action fill:#E0E0E0,stroke:#E0E0E0,color:#202124
+    classDef consumer fill:#F8BBD0,stroke:#E91E63,stroke-width:2px,color:#202124
+
+    class FUCRM,RBCRM,FUCORE,FULOANS,FUCARDS,RBCORE,RBLOANS,RBCARDS,HCONS system
+    class P1,P2,P3,P4,P5 process
+    class MDM,DWH,HUB store
+    class CACT,CPUB,CREAD,CUPDATE,MREAD,OACT,DACT,BACT,BPUB,RACT,MACT,HREAD action
+    class BI,REG consumer
