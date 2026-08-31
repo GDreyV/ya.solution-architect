@@ -1,0 +1,39 @@
+flowchart LR
+    subgraph OPS[Operational Systems]
+      CRM[FU CRM]
+      CORE[FU Core Banking]
+      CARDS[FU Cards]
+      LOANS[FU Loans]
+    end
+    MDM[MDM Customer Hub и справочники]
+    INT[Integration Layer]
+    KAFKA[Kafka]
+    AIR[Airflow]
+    BATCH[Пакетные ETL/ELT-пайплайны]
+    DWH[PostgreSQL DWH]
+    LAKE[Data Lakehouse\nObject Storage + Iceberg]
+    TRINO[Trino]
+    BI[BI]
+    HUB[DataHub]
+    CATALOG_USERS[Data Office, ИТ, аналитики]
+    REG[Регуляторная отчётность]
+    CRM <--> MDM
+    MDM --> INT
+    OPS <--> INT
+    INT --> KAFKA
+    INT --> BATCH
+    BATCH --> DWH
+    BATCH --> LAKE
+    KAFKA --> LAKE
+    AIR -. оркестрация .-> BATCH
+    LAKE --> TRINO
+    DWH --> BI
+    TRINO --> BI
+    DWH --> REG
+    DWH -. метаданные .-> HUB
+    MDM -. метаданные .-> HUB
+    INT -. происхождение .-> HUB
+    BATCH -. происхождение .-> HUB
+    LAKE -. метаданные .-> HUB
+    AIR -. происхождение .-> HUB
+    HUB --> CATALOG_USERS
