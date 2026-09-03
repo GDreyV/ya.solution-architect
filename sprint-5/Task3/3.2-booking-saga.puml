@@ -1,0 +1,30 @@
+@startuml booking-saga
+title 3.2. Успешный сценарий Fairy Tale Saga (SEO)
+actor Пациент
+participant "Мобильное приложение" as Mobile
+participant "API Gateway" as GW
+participant "Оркестратор записи" as Saga
+participant "Расписание" as Schedule
+participant "1С: Полисы" as Policy
+participant "Платёжный шлюз" as Pay
+participant "LIS" as LIS
+participant "Уведомления" as Notify
+
+Пациент -> Mobile : подтвердить запись и оплату
+Mobile -> GW : POST /api/v1/appointments\nIdempotency-Key
+GW -> Saga : создать операцию
+Saga -> Schedule : зарезервировать слот врача
+Schedule --> Saga : bookingId
+Saga -> Policy : проверить полис
+Policy --> Saga : полис действителен
+Saga -> Pay : оплатить (paymentId, idempotency key)
+Pay --> Saga : paid
+Saga -> LIS : зарезервировать сдачу анализов
+LIS --> Saga : labReservationId
+Saga -> Schedule : подтвердить запись
+Schedule --> Saga : confirmed
+Saga -> Notify : событие BookingConfirmed
+Saga --> GW : 201 Created
+GW --> Mobile : запись подтверждена
+Mobile --> Пациент : показать подтверждение
+@enduml

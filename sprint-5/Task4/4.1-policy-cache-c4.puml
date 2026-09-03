@@ -1,0 +1,21 @@
+@startuml policy-cache-c4
+title 4.1. Снижение нагрузки на «1С: Полисы»
+left to right direction
+skinparam shadowing false
+actor Пациент
+rectangle "Мобильное приложение" as Mobile
+rectangle "API Gateway" as GW
+rectangle "Сервис API\nмобильного приложения" as MobileApi
+rectangle "Адаптер полисов" as Adapter
+database "Кэш проверок полисов\nTTL 5 минут" as Cache
+rectangle "1С: Полисы\nне более 50 RPS" as OneC
+
+Пациент --> Mobile
+Mobile --> GW : HTTPS
+GW --> MobileApi : REST
+MobileApi --> Adapter : проверить полис
+Adapter --> Cache : read-through lookup
+Adapter --> OneC : cache miss / изменение\nHTTP + rate limit + circuit breaker
+OneC --> Adapter : статус полиса
+Adapter --> Cache : сохранить / инвалидировать
+@enduml

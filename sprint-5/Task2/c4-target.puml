@@ -1,0 +1,43 @@
+@startuml c4-target
+title Целевая контекстная диаграмма «Здоровье+» (C4 Level 1)
+left to right direction
+skinparam shadowing false
+skinparam rectangle {
+  RoundCorner 12
+}
+
+actor "Пациент" as Patient
+actor "Врач" as Doctor
+actor "Лаборант" as LabAssistant
+
+rectangle "Мобильная платформа\n«Здоровье+»\n\nЗапись к врачу, результаты анализов,\nоплата, полисы и уведомления" as Mobile #438DD5
+
+rectangle "Веб-портал\n\nТекущий интерфейс пациентов,\nврачей и администраторов" as Web
+rectangle "Расписание\n\nСлоты врачей и записи пациентов" as Schedule
+rectangle "CRM\n\nКарточки пациентов, история обращений\nи результаты анализов" as CRM
+rectangle "LIS\n\nЛабораторные исследования\nи их результаты" as LIS
+rectangle "1С: Полисы\n\nПроверка и прикрепление\nполисов ДМС" as Policies
+rectangle "Платёжная система\n\nПроведение онлайн-платежей" as Payments
+rectangle "Система уведомлений\n\nPush, SMS и электронные письма" as Notifications
+
+Patient --> Mobile : Записывается к врачу, оплачивает услуги,\nпросматривает анализы и управляет полисом
+Patient --> Web : Использует существующие\nонлайн-сервисы
+Doctor --> Web : Управляет расписанием\nи просматривает анализы
+LabAssistant --> LIS : Просматривает результаты\nи контролирует загрузку
+
+Mobile --> Schedule : Получает свободные слоты,\nсоздаёт и отменяет записи\n[синхронно]
+Mobile --> CRM : Получает данные пациента\nи результаты анализов\n[синхронно]
+Mobile --> Policies : Проверяет и прикрепляет\nполис ДМС\n[синхронно]
+Mobile --> Payments : Инициирует оплату\nи получает её статус\n[синхронно]
+Schedule --> Notifications : Передаёт события\nо статусе записи\n[асинхронно]
+CRM --> Notifications : Передаёт события\nо готовности анализов\n[асинхронно]
+Payments --> Notifications : Передаёт события\nо статусе оплаты\n[асинхронно]
+Notifications --> Patient : Отправляет уведомления
+LIS --> CRM : Передаёт готовые результаты\nанализов [асинхронно]
+
+Web --> Schedule : Управляет слотами и записями
+Web --> CRM : Работает с карточками пациентов
+Web --> Policies : Проверяет полисы ДМС
+Web --> Payments : Инициирует оплату
+@enduml
+
