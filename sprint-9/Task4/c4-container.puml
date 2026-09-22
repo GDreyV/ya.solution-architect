@@ -1,0 +1,37 @@
+@startuml
+title Africa Delivery — C4 Container, вариант A
+left to right direction
+skinparam componentStyle rectangle
+actor "Покупатель / продавец / поддержка" as user
+rectangle "Устройство пользователя" {
+  component "Клиент\n[Container: Web / mobile]" as client
+}
+rectangle "Azure — глобальный edge" {
+  component "Front Door\n[Container: CDN]\nПубличная статика" as cdn
+}
+rectangle "Нигерия — Layer3 / HOSTAFRICA" {
+  component "API\n[Container: Go]\nКаталог, заказы, согласия" as api
+  component "Worker\n[Container: Go]\nАдаптеры и сверка" as worker
+  database "PostgreSQL\n[Container: БД]\nЗаказы, согласия, outbox" as db
+  component "Публичные файлы\n[Container: HTTP origin]" as origin
+  component "Наблюдаемость\n[Container: Prometheus/Loki/Tempo]" as obs
+}
+cloud "Платёжный партнёр\n[External: Paystack]" as pay
+cloud "Доставка / сообщения\n[External: Sendbox / Termii]" as ext
+user --> client
+client --> api : HTTPS
+client --> cdn : HTTPS, файлы
+client ..> origin : fallback
+cdn --> origin : HTTPS
+api --> db : SQL / TLS
+worker --> db : outbox / SQL
+worker --> pay : HTTPS, reference
+worker --> ext : HTTPS, минимум данных
+pay --> api : проверенный webhook
+api --> obs : метрики / логи / traces
+worker --> obs : метрики / логи / traces
+note bottom of ext
+Страна обработки и допустимость
+передачи проверяются до подключения.
+end note
+@enduml

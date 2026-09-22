@@ -1,0 +1,39 @@
+@startuml
+title Развёртывание MVP — условное распределение VM
+left to right direction
+actor "Клиент" as c
+cloud "Azure DNS / Traffic Manager" as dns
+cloud "Front Door\nПубличная статика" as cdn
+node "NG-1: Rack Centre, Lagos\nLayer3" {
+  node "VM API-1\nHAProxy + API + worker + origin" as a1
+  database "VM DB-1\nPostgreSQL + Patroni + etcd" as d1
+}
+node "NG-2: ADC LOS1, Lagos\nLayer3" {
+  node "VM API-2\nHAProxy + API + worker + origin" as a2
+  database "VM DB-2\nPostgreSQL + Patroni + etcd" as d2
+  node "Backup VM Layer3\nМониторинг" as b1
+}
+node "NG-3: Digital Realty, Lagos\nHOSTAFRICA" {
+  database "VM DB-3\nPostgreSQL + Patroni + etcd" as d3
+  node "Backup VM C5\nРезервный мониторинг" as b2
+}
+c --> dns : запрос адреса
+c --> a1 : HTTPS
+c --> a2 : HTTPS
+c --> cdn : файлы
+cdn --> a1
+cdn --> a2
+a1 --> d1 : текущий primary
+a2 --> d1 : текущий primary
+d1 <--> d2 : репликация / кворум
+d2 <--> d3 : кворум
+d1 <--> d3 : репликация / кворум
+d1 --> b1 : backup + WAL
+d1 --> b2 : backup + WAL
+note bottom
+Роли DB меняются при failover.
+Межплощадочные соединения шифруются.
+Два независимых сетевых пути на площадку — условие.
+Привязка тарифов к зданиям остаётся допущением.
+end note
+@enduml

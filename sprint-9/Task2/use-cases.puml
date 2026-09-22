@@ -1,0 +1,60 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+title Africa Delivery — сценарии MVP в Нигерии
+actor "Покупатель" as buyer
+actor "Продавец" as seller
+actor "Оператор поддержки" as ops
+actor "Платёжный партнёр" as pay
+actor "Оператор доставки" as delivery
+actor "SMS / WhatsApp" as msg
+rectangle "Africa Delivery" {
+ usecase "Найти товар\nи посмотреть условия" as catalog
+ usecase "Оформить заказ" as order
+ usecase "Проверить остаток\nи зону доставки" as check
+ usecase "Оплатить заказ\nэлектронно" as payment
+ usecase "Выбрать наличные\nпри получении" as cash
+ usecase "Получить статус\nзаказа" as status
+ usecase "Запросить возврат" as refund
+ usecase "Пройти проверку\nпродавца" as onboard
+ usecase "Разместить товар\nи обновить остаток" as product
+ usecase "Подтвердить сборку\nи передачу заказа" as fulfill
+ usecase "Создать отправление\nи получить статус" as ship
+ usecase "Сверить оплату\nи выплату продавцу" as reconcile
+ usecase "Рассмотреть спор\nи выполнить возврат" as resolve
+ usecase "Отправить\nуведомление" as notify
+}
+buyer -- catalog
+buyer -- order
+buyer -- payment
+buyer -- cash
+buyer -- status
+buyer -- refund
+seller -- onboard
+seller -- product
+seller -- fulfill
+seller -- reconcile
+ops -- onboard
+ops -- resolve
+ops -- reconcile
+order ..> check : <<include>>
+payment ..> order : <<extend>>\nэлектронная оплата
+cash ..> order : <<extend>>\nзона с согласованным COD
+fulfill ..> ship : <<include>>
+ship -- delivery
+cash -- delivery
+payment -- pay
+reconcile -- pay
+resolve -- pay
+notify -- msg
+notify ..> status : <<extend>>\nпри изменении статуса
+note bottom of cash
+ Только после подтверждения договора COD.
+ До этого сценарий выключен.
+end note
+note bottom of resolve
+ Возврат после проверки и подтверждения
+ источника средств; срок по способу оплаты.
+end note
+@enduml
