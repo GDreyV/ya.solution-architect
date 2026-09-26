@@ -1,4 +1,4 @@
-@startuml
+@startuml value-stream
 title Поток ценности MVP
 start
 :Проверенный продавец публикует товар\n[Доверие; ассортимент];
