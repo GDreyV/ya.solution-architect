@@ -1,4 +1,4 @@
-@startuml
+@startuml deployment-diagram
 title Развёртывание MVP — условное распределение VM
 left to right direction
 actor "Клиент" as c
