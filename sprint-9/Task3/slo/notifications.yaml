@@ -1,0 +1,53 @@
+# OpenSLO v1: https://openslo.com/specification/
+# Метрики задают требуемое инструментирование; окно 30 дней — скользящее.
+# Считать прирост counters с обработкой сбросов до суммирования экземпляров.
+# Нет метрик — сбой мониторинга; нулевой знаменатель — нет наблюдений, не успех.
+# Пустые исходы экспортируются нулями. Аннотации не создают правила Alertmanager.
+# Каждое допустимое сообщение попадает в evaluated_total через 60 с от записи события,
+# включая pending; успешно только при приёме партнёром в срок. Поздний ответ не исправляет нарушение.
+# Повторы HTTP/webhook не создают сообщений; считаются сообщения, а не вызовы API.
+# Нулевые потери outbox в аннотациях — инвариант, без допуска из бюджета ошибок.
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  annotations:
+    on-breach: Уведомить дежурного, остановить массовые рассылки, сохранить приоритет
+      транзакционных сообщений.
+    outbox-loss: 0 потерянных записей outbox; после исчерпания повторов — очередь
+      ручного разбора.
+    sla: Передача партнёру в пределах SLO; гарантии доставки на выключенное устройство
+      нет.
+    source: notifications.md
+  displayName: 'Уведомления: приём партнёром за ≤60 с'
+  labels:
+    owner:
+    - full-stack
+  name: notifications-partner-acceptance
+spec:
+  budgetingMethod: Occurrences
+  description: Сообщения, принятые API партнёра за ≤60 с после записи события /
+    все подлежащие отправке сообщения. Только транзакционные сообщения с допустимым
+    основанием; маркетинг исключён. Возраст очереди и ответ связываются по message_id.
+    Доставка на устройство измеряется отдельно по receipt.
+  indicator:
+    metadata:
+      name: notifications-partner-acceptance-sli
+    spec:
+      ratioMetric:
+        counter: true
+        good:
+          metricSource:
+            spec:
+              query: notification_messages_evaluated_total{class="transactional",eligible="true",outcome="accepted-within-60s"}
+            type: Prometheus
+        total:
+          metricSource:
+            spec:
+              query: notification_messages_evaluated_total{class="transactional",eligible="true"}
+            type: Prometheus
+  objectives:
+  - target: 0.99
+  service: notifications
+  timeWindow:
+  - duration: 30d
+    isRolling: true

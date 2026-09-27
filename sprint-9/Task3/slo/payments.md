@@ -1,5 +1,6 @@
 # SLO: платежи
 
+Контракт OpenSLO: [payments.yaml](payments.yaml).
 Источник: [CTO](../../artifacts.md#artifact-5). Владелец — backend-2.
 
 ## Assumptions

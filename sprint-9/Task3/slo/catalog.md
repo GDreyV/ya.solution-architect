@@ -1,5 +1,6 @@
 # SLO: каталог
 
+Контракт OpenSLO: [catalog.yaml](catalog.yaml).
 Источники: [CTO](../../artifacts.md#artifact-5) — исходная цель доступности, [маркетинг](../../artifacts.md#artifact-2) — скорость отклика, [реестр НФТ](../nfr-registry.md) — обоснование выбора SLO. Владелец — backend-1.
 
 ## Assumptions

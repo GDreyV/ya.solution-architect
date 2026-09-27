@@ -1,5 +1,6 @@
 # SLO: уведомления
 
+Контракт OpenSLO: [notifications.yaml](notifications.yaml).
 Источник: [маркетинг](../../artifacts.md#artifact-2). Владелец — full-stack.
 
 ## Assumptions

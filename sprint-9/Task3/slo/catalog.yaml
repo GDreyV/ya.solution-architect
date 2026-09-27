@@ -1,0 +1,88 @@
+# OpenSLO v1: https://openslo.com/specification/
+# Метрики задают требуемое инструментирование; окно 30 дней — скользящее.
+# Считать прирост counters с обработкой сбросов до суммирования экземпляров.
+# Нет метрик — сбой мониторинга; нулевой знаменатель — нет наблюдений, не успех.
+# Пустые исходы экспортируются нулями. Аннотации не создают правила Alertmanager.
+# HAProxy/API учитывают каждый запрос один раз, включая timeout, 5xx и перегрузочные 429.
+# P99 ≤500 ms: ≥99% запросов в бакете le="0.5"; внешние пробы не входят в эту долю.
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  annotations:
+    error-budget: 0.01% валидных запросов за 30 дней
+    on-breach: Инцидент дежурному; при исчерпании бюджета остановить функциональные
+      релизы.
+    sla: Предложение бизнесу; договорных компенсаций нет.
+    source: catalog.md
+  displayName: 'Каталог: успешное чтение за ≤2 с'
+  labels:
+    owner:
+    - backend-1
+  name: catalog-availability
+spec:
+  budgetingMethod: Occurrences
+  description: 'Успешные валидные запросы чтения с корректным ответом за ≤2 с /
+    все валидные запросы. 5xx, timeout и 429 из-за перегрузки — ошибки; некорректные
+    запросы исключены. Плановые обновления учитываются. Источники: HAProxy и API;
+    внешняя проба каждые 10 с контролирует вход. Пик 360 RPS. Цель согласуется с
+    CTO и CEO.'
+  indicator:
+    metadata:
+      name: catalog-availability-sli
+    spec:
+      ratioMetric:
+        counter: true
+        good:
+          metricSource:
+            spec:
+              query: catalog_read_requests_total{valid="true",outcome="correct-within-2s"}
+            type: Prometheus
+        total:
+          metricSource:
+            spec:
+              query: catalog_read_requests_total{valid="true"}
+            type: Prometheus
+  objectives:
+  - target: 0.9999
+  service: catalog
+  timeWindow:
+  - duration: 30d
+    isRolling: true
+---
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  annotations:
+    source: catalog.md
+  displayName: 'Каталог: P99 серверной задержки ≤500 ms'
+  labels:
+    owner:
+    - backend-1
+  name: catalog-latency
+spec:
+  budgetingMethod: Occurrences
+  description: Не менее 99% валидных запросов чтения имеют серверную задержку ≤500
+    ms (эквивалент P99 ≤500 ms). Измерять все исходы, включая ошибки; не исключать
+    плановые работы. Бакет 0.5 обязателен, таймауты учитываются в histogram.
+  indicator:
+    metadata:
+      name: catalog-latency-sli
+    spec:
+      ratioMetric:
+        counter: true
+        good:
+          metricSource:
+            spec:
+              query: catalog_read_request_duration_seconds_bucket{valid="true",le="0.5"}
+            type: Prometheus
+        total:
+          metricSource:
+            spec:
+              query: catalog_read_request_duration_seconds_count{valid="true"}
+            type: Prometheus
+  objectives:
+  - target: 0.99
+  service: catalog
+  timeWindow:
+  - duration: 30d
+    isRolling: true
